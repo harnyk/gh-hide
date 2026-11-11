@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: gh hide [--dry-run|-n] FILTER
+
+Mark files whose pull request path contains FILTER as viewed.
+EOF
+}
+
+dry_run=false
+case "${1:-}" in
+  --dry-run|-n)
+    dry_run=true
+    shift
+    ;;
+esac
+
+if [[ $# -ne 1 ]]; then
+  usage
+  exit 2
+fi
+
+filter=$1
+pr_number=$(gh pr view --json number --jq '.number')
+pr_id=$(gh pr view --json id --jq '.id')
+files=$(gh api --paginate "repos/{owner}/{repo}/pulls/$pr_number/files" --jq '.[].filename')
+
+mutation='mutation MarkFileAsViewed($pullRequestId: ID!, $path: String!) {
+  markFileAsViewed(input: {pullRequestId: $pullRequestId, path: $path}) {
+    clientMutationId
+  }
+}'
+
+count=0
+while IFS= read -r path; do
+  [[ $path == *"$filter"* ]] || continue
+  ((count += 1))
+
+  if "$dry_run"; then
+    printf '%s\n' "$path"
+  else
+    gh api graphql -f query="$mutation" -F pullRequestId="$pr_id" -F path="$path" >/dev/null
+  fi
+done <<< "$files"
+
+if "$dry_run"; then
+  printf 'Would mark %d file(s) as viewed.\n' "$count"
+else
+  printf 'Marked %d file(s) as viewed.\n' "$count"
+fi

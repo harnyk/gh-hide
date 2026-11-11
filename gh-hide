@@ -30,6 +30,7 @@ fi
 
 pr_number=$(gh pr view --json number --jq '.number')
 pr_id=$(gh pr view --json id --jq '.id')
+printf 'Found PR #%s.\n' "$pr_number" >&2
 
 mutation='mutation MarkFileAsViewed($pullRequestId: ID!, $path: String!) {
   markFileAsViewed(input: {pullRequestId: $pullRequestId, path: $path}) {
@@ -43,8 +44,9 @@ while IFS= read -r -d '' path; do
   ((count += 1))
 
   if "$dry_run"; then
-    printf '%s\n' "$path"
+    printf 'Would mark %s as viewed.\n' "$path" >&2
   else
+    printf 'Marking %s as viewed...\n' "$path" >&2
     gh api graphql -f query="$mutation" -F pullRequestId="$pr_id" -F path="$path" >/dev/null
   fi
 done < <(gh api --paginate "repos/{owner}/{repo}/pulls/$pr_number/files" --template '{{range .}}{{.filename}}{{"\u0000"}}{{end}}')

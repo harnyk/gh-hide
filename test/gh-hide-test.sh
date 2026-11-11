@@ -60,6 +60,9 @@ run_hide() {
 
 run_hide '.spec.'
 [[ $status -eq 0 ]] || fail "normal run failed: $output"
+assert_contains "$output" 'Found PR #42.'
+assert_contains "$output" 'Marking src/widget.spec.ts as viewed...'
+assert_contains "$output" 'Marking test name.spec.ts as viewed...'
 assert_contains "$output" 'Marked 3 file(s) as viewed.'
 log=$(<"$GH_LOG")
 assert_contains "$log" '--paginate'
@@ -78,6 +81,8 @@ assert_not_contains "$log" 'markFileAsViewed'
 for option in --dry-run -n; do
   run_hide "$option" '.spec.'
   [[ $status -eq 0 ]] || fail "$option run failed: $output"
+  assert_contains "$output" 'Found PR #42.'
+  assert_contains "$output" 'Would mark src/widget.spec.ts as viewed.'
   assert_contains "$output" 'src/widget.spec.ts'
   assert_contains "$output" 'test name.spec.ts'
   assert_contains "$output" 'Would mark 3 file(s) as viewed.'

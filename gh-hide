@@ -23,9 +23,13 @@ if [[ $# -ne 1 ]]; then
 fi
 
 filter=$1
+if [[ -z $filter ]]; then
+  usage
+  exit 2
+fi
+
 pr_number=$(gh pr view --json number --jq '.number')
 pr_id=$(gh pr view --json id --jq '.id')
-files=$(gh api --paginate "repos/{owner}/{repo}/pulls/$pr_number/files" --jq '.[].filename')
 
 mutation='mutation MarkFileAsViewed($pullRequestId: ID!, $path: String!) {
   markFileAsViewed(input: {pullRequestId: $pullRequestId, path: $path}) {
@@ -34,7 +38,7 @@ mutation='mutation MarkFileAsViewed($pullRequestId: ID!, $path: String!) {
 }'
 
 count=0
-while IFS= read -r path; do
+while IFS= read -r -d '' path; do
   [[ $path == *"$filter"* ]] || continue
   ((count += 1))
 
@@ -43,7 +47,7 @@ while IFS= read -r path; do
   else
     gh api graphql -f query="$mutation" -F pullRequestId="$pr_id" -F path="$path" >/dev/null
   fi
-done <<< "$files"
+done < <(gh api --paginate "repos/{owner}/{repo}/pulls/$pr_number/files" --template '{{range .}}{{.filename}}{{"\u0000"}}{{end}}')
 
 if "$dry_run"; then
   printf 'Would mark %d file(s) as viewed.\n' "$count"

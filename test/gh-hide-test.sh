@@ -16,7 +16,11 @@ printf '\n' >> "$GH_LOG"
 
 case "$1 $2" in
   'pr view')
-    printf '42\n'
+    if [[ " $* " == *' number '* ]]; then
+      printf '42\n'
+    else
+      printf 'PR_node_42\n'
+    fi
     ;;
   'api graphql')
     if [[ " $* " == *' query '* ]]; then
@@ -24,7 +28,8 @@ case "$1 $2" in
     fi
     ;;
   'api --paginate')
-    printf '%s\n' 'src/widget.spec.ts' 'src/xspecy.ts' 'test name.spec.ts' 'src/widget.ts'
+    printf '%s\0' 'src/widget.spec.ts' 'src/xspecy.ts' 'test name.spec.ts' 'line
+break.spec.ts' 'src/widget.ts'
     ;;
 esac
 GH
@@ -55,11 +60,12 @@ run_hide() {
 
 run_hide '.spec.'
 [[ $status -eq 0 ]] || fail "normal run failed: $output"
-assert_contains "$output" 'Marked 2 file(s) as viewed.'
+assert_contains "$output" 'Marked 3 file(s) as viewed.'
 log=$(<"$GH_LOG")
 assert_contains "$log" '--paginate'
 assert_contains "$log" 'src/widget.spec.ts'
 assert_contains "$log" 'test\ name.spec.ts'
+assert_contains "$log" 'PR_node_42'
 assert_not_contains "$log" 'src/xspecy.ts'
 assert_not_contains "$log" 'src/widget.ts'
 
@@ -74,10 +80,15 @@ for option in --dry-run -n; do
   [[ $status -eq 0 ]] || fail "$option run failed: $output"
   assert_contains "$output" 'src/widget.spec.ts'
   assert_contains "$output" 'test name.spec.ts'
-  assert_contains "$output" 'Would mark 2 file(s) as viewed.'
+  assert_contains "$output" 'Would mark 3 file(s) as viewed.'
   log=$(<"$GH_LOG")
   assert_not_contains "$log" 'markFileAsViewed'
 done
+
+run_hide ''
+[[ $status -ne 0 ]] || fail 'empty filter unexpectedly succeeded'
+assert_contains "$output" 'Usage:'
+[[ ! -s $GH_LOG ]] || fail 'empty filter made a gh request'
 
 run_hide
 [[ $status -ne 0 ]] || fail 'missing filter unexpectedly succeeded'

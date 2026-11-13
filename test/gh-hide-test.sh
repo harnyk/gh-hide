@@ -23,7 +23,9 @@ case "$1 $2" in
     fi
     ;;
   'api graphql')
-    if [[ " $* " == *' query '* ]]; then
+    if [[ " $* " == *CountViewedFiles* ]]; then
+      printf '%s\0' 'UNVIEWED' 'VIEWED' 'VIEWED' 'UNVIEWED' 'UNVIEWED'
+    elif [[ " $* " == *' query '* ]]; then
       printf 'PR_node_42\n'
     fi
     ;;
@@ -88,6 +90,16 @@ for option in --dry-run -n; do
   assert_contains "$output" 'Would mark 3 file(s) as viewed.'
   log=$(<"$GH_LOG")
   assert_not_contains "$log" 'markFileAsViewed'
+done
+
+for option in --count -c; do
+  run_hide "$option"
+  [[ $status -eq 0 ]] || fail "$option run failed: $output"
+  assert_contains "$output" 'visible: 3'
+  assert_contains "$output" 'hidden : 2'
+  assert_contains "$output" 'total  : 5'
+  log=$(<"$GH_LOG")
+  assert_contains "$log" 'CountViewedFiles'
 done
 
 run_hide ''

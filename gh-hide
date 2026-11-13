@@ -4,18 +4,58 @@ set -euo pipefail
 usage() {
   cat >&2 <<'EOF'
 Usage: gh hide [--dry-run|-n] FILTER
+       gh hide [--count|-c]
 
 Mark files whose pull request path contains FILTER as viewed.
 EOF
 }
 
 dry_run=false
+count_only=false
 case "${1:-}" in
   --dry-run|-n)
     dry_run=true
     shift
     ;;
+  --count|-c)
+    count_only=true
+    shift
+    ;;
 esac
+
+if "$count_only"; then
+  if [[ $# -ne 0 ]]; then
+    usage
+    exit 2
+  fi
+
+  pr_id=$(gh pr view --json id --jq '.id')
+  query='query CountViewedFiles($pullRequestId: ID!, $endCursor: String) {
+    node(id: $pullRequestId) {
+      ... on PullRequest {
+        files(first: 100, after: $endCursor) {
+          nodes { viewerViewedState }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    }
+  }'
+
+  visible=0
+  hidden=0
+  while IFS= read -r -d '' state; do
+    if [[ $state == VIEWED ]]; then
+      ((hidden += 1))
+    else
+      ((visible += 1))
+    fi
+  done < <(gh api graphql --paginate -f query="$query" -F pullRequestId="$pr_id" --template '{{range .data.node.files.nodes}}{{.viewerViewedState}}{{"\u0000"}}{{end}}')
+
+  printf 'visible: %d\n' "$visible"
+  printf 'hidden : %d\n' "$hidden"
+  printf 'total  : %d\n' "$((visible + hidden))"
+  exit 0
+fi
 
 if [[ $# -ne 1 ]]; then
   usage

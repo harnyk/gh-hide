@@ -30,6 +30,7 @@ if "$count_only"; then
   fi
 
   pr_id=$(gh pr view --json id --jq '.id')
+  # shellcheck disable=SC2016
   query='query CountViewedFiles($pullRequestId: ID!, $endCursor: String) {
     node(id: $pullRequestId) {
       ... on PullRequest {
@@ -72,12 +73,14 @@ pr_number=$(gh pr view --json number --jq '.number')
 pr_id=$(gh pr view --json id --jq '.id')
 printf 'Found PR #%s.\n' "$pr_number" >&2
 
+# shellcheck disable=SC2016
 mutation='mutation MarkFileAsViewed($pullRequestId: ID!, $path: String!) {
   markFileAsViewed(input: {pullRequestId: $pullRequestId, path: $path}) {
     clientMutationId
   }
 }'
 
+# shellcheck disable=SC2016
 query='query ListPullRequestFiles($pullRequestId: ID!, $endCursor: String) {
   node(id: $pullRequestId) {
     ... on PullRequest {

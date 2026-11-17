@@ -78,9 +78,28 @@ mutation='mutation MarkFileAsViewed($pullRequestId: ID!, $path: String!) {
   }
 }'
 
+query='query ListPullRequestFiles($pullRequestId: ID!, $endCursor: String) {
+  node(id: $pullRequestId) {
+    ... on PullRequest {
+      files(first: 100, after: $endCursor) {
+        nodes { path viewerViewedState }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}'
+
 count=0
-while IFS= read -r -d '' path; do
+skipped=0
+while IFS= read -r -d '' path && IFS= read -r -d '' state; do
   [[ $path == *"$filter"* ]] || continue
+
+  if [[ $state == VIEWED ]]; then
+    ((skipped += 1))
+    printf 'Skipping %s (already viewed).\n' "$path" >&2
+    continue
+  fi
+
   ((count += 1))
 
   if "$dry_run"; then
@@ -89,10 +108,11 @@ while IFS= read -r -d '' path; do
     printf 'Marking %s as viewed...\n' "$path" >&2
     gh api graphql -f query="$mutation" -F pullRequestId="$pr_id" -F path="$path" >/dev/null
   fi
-done < <(gh api --paginate "repos/{owner}/{repo}/pulls/$pr_number/files" --template '{{range .}}{{.filename}}{{"\u0000"}}{{end}}')
+done < <(gh api graphql --paginate -f query="$query" -F pullRequestId="$pr_id" --template '{{range .data.node.files.nodes}}{{.path}}{{"\u0000"}}{{.viewerViewedState}}{{"\u0000"}}{{end}}')
 
 if "$dry_run"; then
   printf 'Would mark %d file(s) as viewed.\n' "$count"
 else
   printf 'Marked %d file(s) as viewed.\n' "$count"
 fi
+printf 'Skipped %d already viewed file(s).\n' "$skipped"

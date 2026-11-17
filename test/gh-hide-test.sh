@@ -25,13 +25,17 @@ case "$1 $2" in
   'api graphql')
     if [[ " $* " == *CountViewedFiles* ]]; then
       printf '%s\0' 'UNVIEWED' 'VIEWED' 'VIEWED' 'UNVIEWED' 'UNVIEWED'
+    elif [[ " $* " == *ListPullRequestFiles* ]]; then
+      printf '%s\0' \
+        'src/widget.spec.ts' 'VIEWED' \
+        'src/xspecy.ts' 'UNVIEWED' \
+        'test name.spec.ts' 'UNVIEWED' \
+        'line
+break.spec.ts' 'UNVIEWED' \
+        'src/widget.ts' 'UNVIEWED'
     elif [[ " $* " == *' query '* ]]; then
       printf 'PR_node_42\n'
     fi
-    ;;
-  'api --paginate')
-    printf '%s\0' 'src/widget.spec.ts' 'src/xspecy.ts' 'test name.spec.ts' 'line
-break.spec.ts' 'src/widget.ts'
     ;;
 esac
 GH
@@ -63,14 +67,16 @@ run_hide() {
 run_hide '.spec.'
 [[ $status -eq 0 ]] || fail "normal run failed: $output"
 assert_contains "$output" 'Found PR #42.'
-assert_contains "$output" 'Marking src/widget.spec.ts as viewed...'
 assert_contains "$output" 'Marking test name.spec.ts as viewed...'
-assert_contains "$output" 'Marked 3 file(s) as viewed.'
+assert_not_contains "$output" 'Marking src/widget.spec.ts as viewed...'
+assert_contains "$output" 'Marked 2 file(s) as viewed.'
+assert_contains "$output" 'Skipping src/widget.spec.ts (already viewed).'
+assert_contains "$output" 'Skipped 1 already viewed file(s).'
 log=$(<"$GH_LOG")
-assert_contains "$log" '--paginate'
-assert_contains "$log" 'src/widget.spec.ts'
+assert_contains "$log" 'ListPullRequestFiles'
 assert_contains "$log" 'test\ name.spec.ts'
 assert_contains "$log" 'PR_node_42'
+assert_not_contains "$log" 'src/widget.spec.ts\ --'
 assert_not_contains "$log" 'src/xspecy.ts'
 assert_not_contains "$log" 'src/widget.ts'
 
@@ -84,10 +90,11 @@ for option in --dry-run -n; do
   run_hide "$option" '.spec.'
   [[ $status -eq 0 ]] || fail "$option run failed: $output"
   assert_contains "$output" 'Found PR #42.'
-  assert_contains "$output" 'Would mark src/widget.spec.ts as viewed.'
-  assert_contains "$output" 'src/widget.spec.ts'
+  assert_not_contains "$output" 'Would mark src/widget.spec.ts as viewed.'
   assert_contains "$output" 'test name.spec.ts'
-  assert_contains "$output" 'Would mark 3 file(s) as viewed.'
+  assert_contains "$output" 'Would mark 2 file(s) as viewed.'
+  assert_contains "$output" 'Skipping src/widget.spec.ts (already viewed).'
+  assert_contains "$output" 'Skipped 1 already viewed file(s).'
   log=$(<"$GH_LOG")
   assert_not_contains "$log" 'markFileAsViewed'
 done

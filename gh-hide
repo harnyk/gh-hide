@@ -3,25 +3,36 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: gh hide [--dry-run|-n] FILTER
+Usage: gh hide [--dry-run|-n] [--unhide|-u] FILTER
        gh hide [--count|-c]
 
 Mark files whose pull request path contains FILTER as viewed.
+With --unhide, unmark matching files as viewed (show them again).
 EOF
 }
 
 dry_run=false
 count_only=false
-case "${1:-}" in
-  --dry-run|-n)
-    dry_run=true
-    shift
-    ;;
-  --count|-c)
-    count_only=true
-    shift
-    ;;
-esac
+unhide=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run|-n)
+      dry_run=true
+      shift
+      ;;
+    --count|-c)
+      count_only=true
+      shift
+      ;;
+    --unhide|-u)
+      unhide=true
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 if "$count_only"; then
   if [[ $# -ne 0 ]]; then
@@ -74,11 +85,19 @@ pr_id=$(gh pr view --json id --jq '.id')
 printf 'Found PR #%s.\n' "$pr_number" >&2
 
 # shellcheck disable=SC2016
-mutation='mutation MarkFileAsViewed($pullRequestId: ID!, $path: String!) {
+if "$unhide"; then
+  mutation='mutation UnmarkFileAsViewed($pullRequestId: ID!, $path: String!) {
+  unmarkFileAsViewed(input: {pullRequestId: $pullRequestId, path: $path}) {
+    clientMutationId
+  }
+}'
+else
+  mutation='mutation MarkFileAsViewed($pullRequestId: ID!, $path: String!) {
   markFileAsViewed(input: {pullRequestId: $pullRequestId, path: $path}) {
     clientMutationId
   }
 }'
+fi
 
 # shellcheck disable=SC2016
 query='query ListPullRequestFiles($pullRequestId: ID!, $endCursor: String) {
@@ -97,25 +116,53 @@ skipped=0
 while IFS= read -r -d '' path && IFS= read -r -d '' state; do
   [[ $path == *"$filter"* ]] || continue
 
-  if [[ $state == VIEWED ]]; then
-    ((skipped += 1))
-    printf 'Skipping %s (already viewed).\n' "$path" >&2
-    continue
+  if "$unhide"; then
+    if [[ $state != VIEWED ]]; then
+      ((skipped += 1))
+      printf 'Skipping %s (not viewed).\n' "$path" >&2
+      continue
+    fi
+  else
+    if [[ $state == VIEWED ]]; then
+      ((skipped += 1))
+      printf 'Skipping %s (already viewed).\n' "$path" >&2
+      continue
+    fi
   fi
 
   ((count += 1))
 
   if "$dry_run"; then
-    printf 'Would mark %s as viewed.\n' "$path" >&2
+    if "$unhide"; then
+      printf 'Would unmark %s as viewed.\n' "$path" >&2
+    else
+      printf 'Would mark %s as viewed.\n' "$path" >&2
+    fi
   else
-    printf 'Marking %s as viewed...\n' "$path" >&2
+    if "$unhide"; then
+      printf 'Unmarking %s as viewed...\n' "$path" >&2
+    else
+      printf 'Marking %s as viewed...\n' "$path" >&2
+    fi
     gh api graphql -f query="$mutation" -F pullRequestId="$pr_id" -F path="$path" >/dev/null
   fi
 done < <(gh api graphql --paginate -f query="$query" -F pullRequestId="$pr_id" --template '{{range .data.node.files.nodes}}{{.path}}{{"\u0000"}}{{.viewerViewedState}}{{"\u0000"}}{{end}}')
 
 if "$dry_run"; then
-  printf 'Would mark %d file(s) as viewed.\n' "$count"
+  if "$unhide"; then
+    printf 'Would unmark %d file(s) as viewed.\n' "$count"
+  else
+    printf 'Would mark %d file(s) as viewed.\n' "$count"
+  fi
 else
-  printf 'Marked %d file(s) as viewed.\n' "$count"
+  if "$unhide"; then
+    printf 'Unmarked %d file(s) as viewed.\n' "$count"
+  else
+    printf 'Marked %d file(s) as viewed.\n' "$count"
+  fi
 fi
-printf 'Skipped %d already viewed file(s).\n' "$skipped"
+if "$unhide"; then
+  printf 'Skipped %d not viewed file(s).\n' "$skipped"
+else
+  printf 'Skipped %d already viewed file(s).\n' "$skipped"
+fi

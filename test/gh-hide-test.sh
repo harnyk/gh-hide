@@ -109,6 +109,37 @@ for option in --count -c; do
   assert_contains "$log" 'CountViewedFiles'
 done
 
+for option in --unhide -u; do
+  run_hide "$option" '.spec.'
+  [[ $status -eq 0 ]] || fail "$option run failed: $output"
+  assert_contains "$output" 'Found PR #42.'
+  assert_contains "$output" 'Unmarking src/widget.spec.ts as viewed...'
+  assert_not_contains "$output" 'Unmarking test name.spec.ts as viewed...'
+  assert_contains "$output" 'Unmarked 1 file(s) as viewed.'
+  assert_contains "$output" 'Skipping test name.spec.ts (not viewed).'
+  assert_contains "$output" 'Skipped 2 not viewed file(s).'
+  log=$(<"$GH_LOG")
+  assert_contains "$log" 'ListPullRequestFiles'
+  assert_contains "$log" 'unmarkFileAsViewed'
+  assert_contains "$log" 'src/widget.spec.ts'
+  assert_not_contains "$log" 'MarkFileAsViewed'
+done
+
+for option in --unhide -u; do
+  run_hide --dry-run "$option" '.spec.'
+  [[ $status -eq 0 ]] || fail "dry-run $option run failed: $output"
+  assert_contains "$output" 'Would unmark src/widget.spec.ts as viewed.'
+  assert_contains "$output" 'Would unmark 1 file(s) as viewed.'
+  log=$(<"$GH_LOG")
+  assert_not_contains "$log" 'unmarkFileAsViewed'
+done
+
+run_hide --unhide 'no-match'
+[[ $status -eq 0 ]] || fail "unhide no-match run failed: $output"
+assert_contains "$output" 'Unmarked 0 file(s) as viewed.'
+log=$(<"$GH_LOG")
+assert_not_contains "$log" 'unmarkFileAsViewed'
+
 run_hide ''
 [[ $status -ne 0 ]] || fail 'empty filter unexpectedly succeeded'
 assert_contains "$output" 'Usage:'

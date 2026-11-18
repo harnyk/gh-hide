@@ -3,10 +3,11 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: gh hide [--dry-run|-n] [--unhide|-u] FILTER
+Usage: gh hide [--dry-run|-n] [--unhide|-u] [--all|-a] [FILTER]
        gh hide [--count|-c]
 
 Mark files whose pull request path contains FILTER as viewed.
+With --all, process every file in the pull request (FILTER must be omitted).
 With --unhide, unmark matching files as viewed (show them again).
 EOF
 }
@@ -14,6 +15,7 @@ EOF
 dry_run=false
 count_only=false
 unhide=false
+all=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run|-n)
@@ -26,6 +28,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --unhide|-u)
       unhide=true
+      shift
+      ;;
+    --all|-a)
+      all=true
       shift
       ;;
     *)
@@ -69,15 +75,22 @@ if "$count_only"; then
   exit 0
 fi
 
-if [[ $# -ne 1 ]]; then
-  usage
-  exit 2
-fi
+if "$all"; then
+  if [[ $# -ne 0 ]]; then
+    usage
+    exit 2
+  fi
+else
+  if [[ $# -ne 1 ]]; then
+    usage
+    exit 2
+  fi
 
-filter=$1
-if [[ -z $filter ]]; then
-  usage
-  exit 2
+  filter=$1
+  if [[ -z $filter ]]; then
+    usage
+    exit 2
+  fi
 fi
 
 pr_number=$(gh pr view --json number --jq '.number')
@@ -114,7 +127,9 @@ query='query ListPullRequestFiles($pullRequestId: ID!, $endCursor: String) {
 count=0
 skipped=0
 while IFS= read -r -d '' path && IFS= read -r -d '' state; do
-  [[ $path == *"$filter"* ]] || continue
+  if ! "$all"; then
+    [[ $path == *"$filter"* ]] || continue
+  fi
 
   if "$unhide"; then
     if [[ $state != VIEWED ]]; then

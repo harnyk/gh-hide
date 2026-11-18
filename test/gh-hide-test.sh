@@ -140,6 +140,29 @@ assert_contains "$output" 'Unmarked 0 file(s) as viewed.'
 log=$(<"$GH_LOG")
 assert_not_contains "$log" 'unmarkFileAsViewed'
 
+for option in --all -a; do
+  run_hide "$option"
+  [[ $status -eq 0 ]] || fail "$option run failed: $output"
+  assert_contains "$output" 'Marked 4 file(s) as viewed.'
+  assert_contains "$output" 'Skipping src/widget.spec.ts (already viewed).'
+  assert_contains "$output" 'Skipped 1 already viewed file(s).'
+  log=$(<"$GH_LOG")
+  assert_contains "$log" 'src/xspecy.ts'
+  assert_contains "$log" 'src/widget.ts'
+done
+
+for option in --all -a; do
+  run_hide "$option" -u
+  [[ $status -eq 0 ]] || fail "unhide $option run failed: $output"
+  assert_contains "$output" 'Unmarked 1 file(s) as viewed.'
+  assert_contains "$output" 'Skipped 4 not viewed file(s).'
+done
+
+run_hide --all '.spec.'
+[[ $status -ne 0 ]] || fail '--all with filter unexpectedly succeeded'
+assert_contains "$output" 'Usage:'
+[[ ! -s $GH_LOG ]] || fail '--all with filter made a gh request'
+
 run_hide ''
 [[ $status -ne 0 ]] || fail 'empty filter unexpectedly succeeded'
 assert_contains "$output" 'Usage:'

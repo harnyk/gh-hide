@@ -1,6 +1,6 @@
 # gh-hide
 
-A [GitHub CLI](https://cli.github.com/) extension (`gh hide`) that marks pull request files as viewed so they collapse in the review UI and stay out of the way. The filter is a plain substring of the file path—not a regex.
+A [GitHub CLI](https://cli.github.com/) extension (`gh hide`) that marks pull request files as viewed so they collapse in the review UI and stay out of the way. Filters are plain substrings of the file path by default, or glob patterns with `--wildcard`.
 
 ## Requirements
 
@@ -62,6 +62,41 @@ gh hide 'pnpm-lock.yaml'
 gh hide 'generated/'
 ```
 
+### Several filters
+
+Pass several filters to process files matching **any** of them:
+
+```bash
+gh hide '.spec.' 'pnpm-lock.yaml' 'generated/'
+```
+
+### Wildcard (glob) filters
+
+With `--wildcard` (`-w`) every filter is a glob pattern matched against the whole path:
+
+| Pattern | Matches |
+|---------|---------|
+| `*` | any characters except `/` |
+| `**` | any characters including `/` (whole path segments) |
+| `?` | one character except `/` |
+| `[abc]`, `[a-z]`, `[!abc]` | one character from (or not from) the set |
+| `{a,b}` | either alternative |
+
+A pattern without `/` is also matched against the file name alone, so it works in any directory.
+
+```bash
+# *.spec.ts files in any directory
+gh hide -w '*.spec.ts'
+
+# everything under generated/ at the repository root
+gh hide -w 'generated/**'
+
+# YAML anywhere under src/, plus snapshot files anywhere
+gh hide -w 'src/**/*.{yaml,yml}' '*.snap'
+```
+
+Quote patterns so the shell does not expand them. Without `--wildcard`, characters like `*` and `[` are matched literally.
+
 ### Dry run (no API changes)
 
 ```bash
@@ -76,7 +111,7 @@ gh hide --all
 gh hide -a
 ```
 
-Do not pass a filter with `--all`.
+Do not pass filters or `--wildcard` with `--all`.
 
 ### Unhide (mark as not viewed again)
 

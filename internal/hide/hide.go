@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -36,8 +35,11 @@ type Client interface {
 
 // Options controls a Run invocation.
 type Options struct {
-	// Filter is a literal substring of the file path. Ignored when All is set.
-	Filter string
+	// Filters select files; a file is selected when it matches any of them.
+	// Ignored when All is set.
+	Filters []string
+	// Wildcard treats Filters as glob patterns instead of literal substrings.
+	Wildcard bool
 	// All processes every file in the pull request.
 	All bool
 	// Unhide unmarks files as viewed instead of marking them.
@@ -67,8 +69,13 @@ func (r *Runner) logf(format string, args ...any) {
 
 // Run marks (or unmarks) matching files as viewed.
 func (r *Runner) Run(ctx context.Context, opts Options) error {
-	if !opts.All && opts.Filter == "" {
-		return fmt.Errorf("filter must not be empty")
+	match := func(string) bool { return true }
+	if !opts.All {
+		m, err := NewMatcher(opts.Filters, opts.Wildcard)
+		if err != nil {
+			return err
+		}
+		match = m
 	}
 	concurrency := opts.Concurrency
 	if concurrency < 1 {
@@ -89,7 +96,7 @@ func (r *Runner) Run(ctx context.Context, opts Options) error {
 	var targets []string
 	skipped := 0
 	for _, f := range files {
-		if !opts.All && !strings.Contains(f.Path, opts.Filter) {
+		if !match(f.Path) {
 			continue
 		}
 		switch {

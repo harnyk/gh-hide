@@ -14,7 +14,10 @@ func TestInvalidArgsAreUsageErrors(t *testing.T) {
 		"empty filter":        {""},
 		"all with filter":     {"--all", ".spec."},
 		"count with filter":   {"--count", ".spec."},
-		"two filters":         {"a", "b"},
+		"empty among filters": {"a", ""},
+		"bad wildcard":        {"-w", "[a"},
+		"wildcard with all":   {"-w", "--all"},
+		"wildcard with count": {"-w", "--count"},
 		"unknown flag":        {"--nope", "a"},
 		"zero concurrency":    {"-j", "0", "a"},
 		"invalid concurrency": {"--concurrency", "x", "a"},
@@ -30,8 +33,7 @@ func TestInvalidArgsAreUsageErrors(t *testing.T) {
 			cmd.SetOut(&bytes.Buffer{})
 			cmd.SetErr(&bytes.Buffer{})
 			err := cmd.Execute()
-			var ue usageError
-			if !errors.As(err, &ue) {
+			if _, ok := errors.AsType[usageError](err); !ok {
 				t.Fatalf("expected usage error, got %v", err)
 			}
 			if called {

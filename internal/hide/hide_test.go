@@ -106,7 +106,7 @@ func assertNotContains(t *testing.T, s, unwanted string) {
 
 func TestHideByFilter(t *testing.T) {
 	c := &fakeClient{files: sampleFiles()}
-	out, errOut, err := run(t, c, Options{Filter: ".spec."})
+	out, errOut, err := run(t, c, Options{Filters: []string{".spec."}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestHideByFilter(t *testing.T) {
 
 func TestNoMatch(t *testing.T) {
 	c := &fakeClient{files: sampleFiles()}
-	out, _, err := run(t, c, Options{Filter: "no-match"})
+	out, _, err := run(t, c, Options{Filters: []string{"no-match"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestNoMatch(t *testing.T) {
 
 func TestDryRun(t *testing.T) {
 	c := &fakeClient{files: sampleFiles()}
-	out, errOut, err := run(t, c, Options{Filter: ".spec.", DryRun: true})
+	out, errOut, err := run(t, c, Options{Filters: []string{".spec."}, DryRun: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestDryRun(t *testing.T) {
 
 func TestUnhide(t *testing.T) {
 	c := &fakeClient{files: sampleFiles()}
-	out, errOut, err := run(t, c, Options{Filter: ".spec.", Unhide: true})
+	out, errOut, err := run(t, c, Options{Filters: []string{".spec."}, Unhide: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestUnhide(t *testing.T) {
 
 func TestUnhideDryRun(t *testing.T) {
 	c := &fakeClient{files: sampleFiles()}
-	out, errOut, err := run(t, c, Options{Filter: ".spec.", Unhide: true, DryRun: true})
+	out, errOut, err := run(t, c, Options{Filters: []string{".spec."}, Unhide: true, DryRun: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,4 +241,31 @@ func TestCount(t *testing.T) {
 	assertContains(t, out.String(), "visible: 4")
 	assertContains(t, out.String(), "hidden : 1")
 	assertContains(t, out.String(), "total  : 5")
+}
+
+func TestMultipleFilters(t *testing.T) {
+	c := &fakeClient{files: sampleFiles()}
+	out, _, err := run(t, c, Options{Filters: []string{"test name", "widget.ts"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, out, "Marked 2 file(s) as viewed.")
+	want := []string{"src/widget.ts", "test name.spec.ts"}
+	if got := c.paths(); !slices.Equal(got, want) {
+		t.Errorf("marked %q, want %q", got, want)
+	}
+}
+
+func TestWildcardRun(t *testing.T) {
+	c := &fakeClient{files: sampleFiles()}
+	out, _, err := run(t, c, Options{Filters: []string{"src/*.ts"}, Wildcard: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, out, "Marked 2 file(s) as viewed.")
+	assertContains(t, out, "Skipped 1 already viewed file(s).")
+	want := []string{"src/widget.ts", "src/xspecy.ts"}
+	if got := c.paths(); !slices.Equal(got, want) {
+		t.Errorf("marked %q, want %q", got, want)
+	}
 }

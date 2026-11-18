@@ -3,6 +3,7 @@ module github.com/harnyk/gh-hide
 go 1.26.7
 
 require (
+	github.com/bmatcuk/doublestar/v4 v4.10.4
 	github.com/cli/go-gh/v2 v2.17.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/sync v0.25.0

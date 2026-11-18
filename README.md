@@ -5,7 +5,6 @@ A [GitHub CLI](https://cli.github.com/) extension (`gh hide`) that marks pull re
 ## Requirements
 
 - [GitHub CLI](https://cli.github.com/) (`gh`), authenticated (`gh auth login`)
-- Bash
 - Current branch is checked out locally and has an open PR (`gh pr view` resolves it)
 
 ## Installation
@@ -16,12 +15,19 @@ A [GitHub CLI](https://cli.github.com/) extension (`gh hide`) that marks pull re
 gh extension install harnyk/gh-hide
 ```
 
+`gh` downloads the precompiled binary for your platform from the latest GitHub release.
+
 ### From a local clone
+
+Requires Go (see `go.mod` for the version).
 
 ```bash
 cd /path/to/gh-hide
+go build -o gh-hide .
 gh extension install .
 ```
+
+Rebuild with `go build -o gh-hide .` after pulling changes.
 
 Verify:
 
@@ -82,6 +88,15 @@ gh hide -u '.spec.'
 gh hide --all --unhide
 ```
 
+### Concurrency
+
+Files are marked (or unmarked) in parallel, 8 at a time by default:
+
+```bash
+gh hide --concurrency 4 '.spec.'
+gh hide -j 1 '.spec.'   # sequential
+```
+
 ### Count viewed vs not viewed
 
 ```bash
@@ -102,20 +117,36 @@ total  : 57
 - Files already marked viewed are skipped on a normal `hide` (message on stderr).
 - On `--unhide`, files that are not viewed yet are skipped.
 - No matches → exit code 0 and `Marked 0 file(s) as viewed.`
-- `gh` errors or invalid arguments → non-zero exit code.
+- Progress messages may appear in any order because files are processed concurrently.
+- If a request fails, remaining requests are cancelled and the command exits with code 1.
+- Invalid arguments → exit code 2; `gh`/API errors → exit code 1.
 
-Usage (built into the extension):
+Built-in help:
 
 ```bash
-gh hide
+gh hide --help
 ```
 
 ## Development and tests
 
-Tests stub `gh`; no live API calls:
+Tests use a fake GitHub client; no live API calls:
 
 ```bash
-bash test/gh-hide-test.sh
+go test -race ./...
 ```
 
-Expected: `PASS: gh-hide`.
+## Releasing
+
+Releases are built by [GoReleaser](https://goreleaser.com/) in GitHub Actions when a `v*` tag is pushed:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Check the configuration and build locally without publishing:
+
+```bash
+goreleaser check
+goreleaser release --snapshot --clean --skip=publish
+```
